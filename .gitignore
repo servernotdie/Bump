@@ -9,6 +9,3 @@
 .classpath
 dependency-reduced-pom.xml
 .DS_Store
-libs/
-build.sh
-install.sh
