@@ -3,7 +3,9 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+shopt -s nullglob
 PATCHES=( "${SCRIPT_DIR}"/*.patch )
+shopt -u nullglob
 
 if [ ${#PATCHES[@]} -eq 0 ]; then
     echo "[patch] No patch files found in ${SCRIPT_DIR}"
