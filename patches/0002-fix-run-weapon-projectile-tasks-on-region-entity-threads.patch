@@ -1,0 +1,459 @@
+From 490d64cf932f434ce74acf58f1a933a7c9d62623 Mon Sep 17 00:00:00 2001
+From: mytai20100 <142713298+Mytai20100@users.noreply.github.com>
+Date: Sat, 8 Aug 2026 20:59:57 +0700
+Subject: [PATCH] fix: run weapon/projectile tasks on region/entity schedulers
+ (Folia)
+
+---
+ build.gradle                                  | 24 +++++++++++---
+ gradle.properties                             |  4 +++
+ .../bump/api/appraise/AppraiseResult.java     |  3 +-
+ .../bump/implementation/Bump.java             |  2 --
+ .../bump/implementation/BumpItems.java        | 28 ++++++++--------
+ .../implementation/items/food/ItemFood.java   | 21 +++++-------
+ .../implementation/items/food/Zongzi.java     |  4 +--
+ .../items/machines/AttributeGrindstone.java   |  4 +--
+ .../items/weapons/DevilSword.java             |  2 +-
+ .../items/weapons/SkyDevilSword.java          | 33 ++++++++-----------
+ .../items/weapons/SkySword.java               |  2 +-
+ .../menus/AppraiseTypeMenu.java               |  2 +-
+ .../tasks/WeaponProjectileTask.java           | 32 +++++-------------
+ .../bump/utils/AppraiseUtils.java             |  9 ++---
+ .../slimefunguguproject/bump/utils/Utils.java |  2 +-
+ 15 files changed, 82 insertions(+), 90 deletions(-)
+
+diff --git a/build.gradle b/build.gradle
+index 3c2a587..de4b6a6 100644
+--- a/build.gradle
++++ b/build.gradle
+@@ -11,7 +11,8 @@ version = 'UNOFFICIAL'
+ description = 'Bump'
+ 
+ java {
+-    sourceCompatibility = JavaVersion.VERSION_16
++    sourceCompatibility = JavaVersion.VERSION_21
++    targetCompatibility = JavaVersion.VERSION_21
+ }
+ 
+ tasks.withType(JavaCompile) {
+@@ -19,15 +20,25 @@ tasks.withType(JavaCompile) {
+ }
+ 
+ repositories {
+-    mavenLocal()
++    exclusiveContent {
++        forRepository { mavenLocal() }
++        filter { includeGroup 'com.github.servernotdie' }
++    }
+     mavenCentral()
+ 
++    maven {
++        url = uri('https://repo.papermc.io/repository/maven-public/')
++    }
++
+     maven {
+         url = uri('https://hub.spigotmc.org/nexus/content/repositories/snapshots/')
+     }
+ 
+     maven {
+         url = uri('https://jitpack.io')
++        content {
++            excludeGroup 'com.github.servernotdie'
++        }
+     }
+ 
+     maven {
+@@ -40,8 +51,10 @@ dependencies {
+     implementation 'dev.sefiraat:SefiLib:0.2.6'
+     implementation 'org.bstats:bstats-bukkit:3.0.2'
+ 
+-    compileOnly 'org.spigotmc:spigot-api:1.20.4-R0.1-SNAPSHOT'
+-    compileOnly 'io.github.Slimefun:Slimefun4:RC-37'
++    compileOnly 'io.papermc.paper:paper-api:1.21.11-R0.1-SNAPSHOT'
++    compileOnly('com.github.servernotdie:Slimefun4:79809c0a') {
++        transitive = false
++    }
+     compileOnly 'com.google.code.findbugs:jsr305:3.0.2'
+ }
+ 
+@@ -54,7 +67,8 @@ shadowJar {
+ 
+ bukkit {
+     main = 'io.github.slimefunguguproject.bump.implementation.Bump'
+-    apiVersion = '1.16'
++    apiVersion = '1.21'
++    foliaSupported = true
+     authors = ['bxx2004', 'LobbyTech-MC', 'zimzaza4', 'haiman233', 'ybw0014']
+     depend = ['Slimefun']
+     softDepend = ['GuizhanLibPlugin']
+diff --git a/gradle.properties b/gradle.properties
+index 8c85075..b8a208f 100644
+--- a/gradle.properties
++++ b/gradle.properties
+@@ -1 +1,5 @@
+ version = 2.0-UNOFFICIAL
++org.gradle.vfs.watch=false
++org.gradle.caching=false
++org.gradle.configuration-cache=false
++org.gradle.unsafe.configuration-cache=false
+diff --git a/src/main/java/io/github/slimefunguguproject/bump/api/appraise/AppraiseResult.java b/src/main/java/io/github/slimefunguguproject/bump/api/appraise/AppraiseResult.java
+index 57f99ca..f1279ab 100644
+--- a/src/main/java/io/github/slimefunguguproject/bump/api/appraise/AppraiseResult.java
++++ b/src/main/java/io/github/slimefunguguproject/bump/api/appraise/AppraiseResult.java
+@@ -4,7 +4,6 @@ import java.util.ArrayList;
+ import java.util.HashMap;
+ import java.util.List;
+ import java.util.Map;
+-import java.util.UUID;
+ 
+ import javax.annotation.Nonnull;
+ import javax.annotation.Nullable;
+@@ -101,7 +100,7 @@ public final class AppraiseResult {
+                 BumpTag tag = BumpTag.getTag(slot.name() + "_SLOT");
+                 if (tag.isTagged(material)) {
+                     meta.addAttributeModifier(attr,
+-                        new AttributeModifier(UUID.randomUUID(), appraiseType.getKey().toString(), entry.getValue(), AppraiseUtils.getOperation(attr), slot)
++                        new AttributeModifier(appraiseType.getKey(), entry.getValue(), AppraiseUtils.getOperation(attr), slot.getGroup())
+                     );
+                 }
+             }
+diff --git a/src/main/java/io/github/slimefunguguproject/bump/implementation/Bump.java b/src/main/java/io/github/slimefunguguproject/bump/implementation/Bump.java
+index ccb8709..10861f3 100644
+--- a/src/main/java/io/github/slimefunguguproject/bump/implementation/Bump.java
++++ b/src/main/java/io/github/slimefunguguproject/bump/implementation/Bump.java
+@@ -6,7 +6,6 @@ import java.util.logging.Level;
+ 
+ import javax.annotation.Nonnull;
+ 
+-import org.bukkit.Bukkit;
+ import org.bukkit.plugin.Plugin;
+ 
+ import io.github.slimefunguguproject.bump.core.BumpRegistry;
+@@ -157,7 +156,6 @@ public final class Bump extends AbstractAddon {
+ 
+     @Override
+     public void disable() {
+-        Bukkit.getScheduler().cancelTasks(this);
+     }
+ 
+     @Override
+diff --git a/src/main/java/io/github/slimefunguguproject/bump/implementation/BumpItems.java b/src/main/java/io/github/slimefunguguproject/bump/implementation/BumpItems.java
+index ba7d5ff..b3cd15a 100644
+--- a/src/main/java/io/github/slimefunguguproject/bump/implementation/BumpItems.java
++++ b/src/main/java/io/github/slimefunguguproject/bump/implementation/BumpItems.java
+@@ -275,35 +275,35 @@ public final class BumpItems {
+             Material.DIAMOND_SWORD
+         );
+ 
+-        LIGHT_BOW.addUnsafeEnchantment(Enchantment.ARROW_DAMAGE, 5);
++        LIGHT_BOW.addUnsafeEnchantment(Enchantment.POWER, 5);
+ 
+-        WITHERSKULL_BOW.addUnsafeEnchantment(Enchantment.ARROW_DAMAGE, 5);
++        WITHERSKULL_BOW.addUnsafeEnchantment(Enchantment.POWER, 5);
+ 
+-        EMER_SWORD.addUnsafeEnchantment(Enchantment.DAMAGE_ALL, 1);
++        EMER_SWORD.addUnsafeEnchantment(Enchantment.SHARPNESS, 1);
+ 
+-        BONE_SWORD.addUnsafeEnchantment(Enchantment.DURABILITY, 10);
++        BONE_SWORD.addUnsafeEnchantment(Enchantment.UNBREAKING, 10);
+ 
+         AppraiseUtils.setAppraisable(RANDOM_SWORD);
+ 
+-        GUARD_SWORD.addUnsafeEnchantment(Enchantment.DAMAGE_ALL, 5);
++        GUARD_SWORD.addUnsafeEnchantment(Enchantment.SHARPNESS, 5);
+         GUARD_SWORD.addUnsafeEnchantment(Enchantment.IMPALING, 3);
+ 
+         PEACH_SWORD.addUnsafeEnchantment(Enchantment.KNOCKBACK, 5);
+-        PEACH_SWORD.addUnsafeEnchantment(Enchantment.DURABILITY, 3);
++        PEACH_SWORD.addUnsafeEnchantment(Enchantment.UNBREAKING, 3);
+ 
+-        SOUL_SWORD.addUnsafeEnchantment(Enchantment.DAMAGE_ALL, 2);
+-        SOUL_SWORD.addUnsafeEnchantment(Enchantment.DURABILITY, 1);
++        SOUL_SWORD.addUnsafeEnchantment(Enchantment.SHARPNESS, 2);
++        SOUL_SWORD.addUnsafeEnchantment(Enchantment.UNBREAKING, 1);
+ 
+-        SKY_SWORD.addUnsafeEnchantment(Enchantment.DAMAGE_ALL, 1);
+-        SKY_SWORD.addUnsafeEnchantment(Enchantment.DURABILITY, 1);
++        SKY_SWORD.addUnsafeEnchantment(Enchantment.SHARPNESS, 1);
++        SKY_SWORD.addUnsafeEnchantment(Enchantment.UNBREAKING, 1);
+         SKY_SWORD.addUnsafeEnchantment(Enchantment.SWEEPING_EDGE, 1);
+ 
+-        DEVIL_SWORD.addUnsafeEnchantment(Enchantment.DAMAGE_ALL, 1);
+-        DEVIL_SWORD.addUnsafeEnchantment(Enchantment.DURABILITY, 1);
++        DEVIL_SWORD.addUnsafeEnchantment(Enchantment.SHARPNESS, 1);
++        DEVIL_SWORD.addUnsafeEnchantment(Enchantment.UNBREAKING, 1);
+         DEVIL_SWORD.addUnsafeEnchantment(Enchantment.SWEEPING_EDGE, 1);
+ 
+-        SKY_DEVIL_SWORD.addUnsafeEnchantment(Enchantment.DAMAGE_ALL, 5);
+-        SKY_DEVIL_SWORD.addUnsafeEnchantment(Enchantment.DURABILITY, 5);
++        SKY_DEVIL_SWORD.addUnsafeEnchantment(Enchantment.SHARPNESS, 5);
++        SKY_DEVIL_SWORD.addUnsafeEnchantment(Enchantment.UNBREAKING, 5);
+         SKY_DEVIL_SWORD.addUnsafeEnchantment(Enchantment.LOYALTY, 5);
+ 
+         // endregion weapon
+diff --git a/src/main/java/io/github/slimefunguguproject/bump/implementation/items/food/ItemFood.java b/src/main/java/io/github/slimefunguguproject/bump/implementation/items/food/ItemFood.java
+index f487fbc..9cf49b7 100644
+--- a/src/main/java/io/github/slimefunguguproject/bump/implementation/items/food/ItemFood.java
++++ b/src/main/java/io/github/slimefunguguproject/bump/implementation/items/food/ItemFood.java
+@@ -9,7 +9,6 @@ import org.bukkit.GameMode;
+ import org.bukkit.Sound;
+ import org.bukkit.entity.Player;
+ import org.bukkit.inventory.ItemStack;
+-import org.bukkit.scheduler.BukkitRunnable;
+ 
+ import io.github.slimefunguguproject.bump.implementation.Bump;
+ import io.github.slimefunguguproject.bump.implementation.groups.BumpItemGroups;
+@@ -55,19 +54,15 @@ public abstract class ItemFood extends UnplaceableBlock {
+                 ItemUtils.consumeItem(e.getItem(), false);
+             }
+ 
+-            new BukkitRunnable() {
+-                int count = 7;
+-
+-                @Override
+-                public void run() {
+-                    if (count > 0) {
+-                        p.playSound(p.getLocation(), Sound.ENTITY_GENERIC_EAT, 1, 1);
+-                        count--;
+-                    } else {
+-                        cancel();
+-                    }
++            int[] count = {7};
++            p.getScheduler().runAtFixedRate(Bump.getInstance(), task -> {
++                if (count[0] > 0) {
++                    p.playSound(p.getLocation(), Sound.ENTITY_GENERIC_EAT, 1, 1);
++                    count[0]--;
++                } else {
++                    task.cancel();
+                 }
+-            }.runTaskTimer(Bump.getInstance(), 1L, 4L);
++            }, null, 1L, 4L);
+ 
+             applyFoodEffects(p);
+             cooldown.set(p.getUniqueId(), 2000L);
+diff --git a/src/main/java/io/github/slimefunguguproject/bump/implementation/items/food/Zongzi.java b/src/main/java/io/github/slimefunguguproject/bump/implementation/items/food/Zongzi.java
+index 3b09d83..dc401de 100644
+--- a/src/main/java/io/github/slimefunguguproject/bump/implementation/items/food/Zongzi.java
++++ b/src/main/java/io/github/slimefunguguproject/bump/implementation/items/food/Zongzi.java
+@@ -30,8 +30,8 @@ public class Zongzi extends ItemFood {
+         FoodLevelUtils.add(p, 8);
+         p.addPotionEffect(new PotionEffect(PotionEffectType.CONDUIT_POWER, 100, 1));
+         p.addPotionEffect(new PotionEffect(PotionEffectType.GLOWING, 1000, 1));
+-        p.addPotionEffect(new PotionEffect(PotionEffectType.INCREASE_DAMAGE, 100, 1));
+-        p.addPotionEffect(new PotionEffect(PotionEffectType.FAST_DIGGING, 150, 2));
++        p.addPotionEffect(new PotionEffect(PotionEffectType.STRENGTH, 100, 1));
++        p.addPotionEffect(new PotionEffect(PotionEffectType.HASTE, 150, 2));
+         p.addPotionEffect(new PotionEffect(PotionEffectType.LUCK, 500, 2));
+     }
+ }
+diff --git a/src/main/java/io/github/slimefunguguproject/bump/implementation/items/machines/AttributeGrindstone.java b/src/main/java/io/github/slimefunguguproject/bump/implementation/items/machines/AttributeGrindstone.java
+index b3a86d3..f7a0b8c 100644
+--- a/src/main/java/io/github/slimefunguguproject/bump/implementation/items/machines/AttributeGrindstone.java
++++ b/src/main/java/io/github/slimefunguguproject/bump/implementation/items/machines/AttributeGrindstone.java
+@@ -163,8 +163,8 @@ public final class AttributeGrindstone extends SimpleMenuBlock {
+                 for (Map.Entry<Attribute, AttributeModifier> entry : modifierMap.entries()) {
+                     Attribute attribute = entry.getKey();
+                     AttributeModifier modifier = entry.getValue();
+-                    NamespacedKey key = NamespacedKey.fromString(modifier.getName(), Bump.getInstance());
+-                    if (key != null && AppraiseType.getByKey(key) != null) {
++                    NamespacedKey key = modifier.getKey();
++                    if (AppraiseType.getByKey(key) != null) {
+                         meta.removeAttributeModifier(attribute, modifier);
+                     }
+                 }
+diff --git a/src/main/java/io/github/slimefunguguproject/bump/implementation/items/weapons/DevilSword.java b/src/main/java/io/github/slimefunguguproject/bump/implementation/items/weapons/DevilSword.java
+index f9cbe07..63414d9 100644
+--- a/src/main/java/io/github/slimefunguguproject/bump/implementation/items/weapons/DevilSword.java
++++ b/src/main/java/io/github/slimefunguguproject/bump/implementation/items/weapons/DevilSword.java
+@@ -37,7 +37,7 @@ public class DevilSword extends BumpSword {
+         for (int i = 0; i < 20; i++) {
+             Projectile projectile = p.launchProjectile(SmallFireball.class);
+             WeaponProjectileTask.track(projectile);
+-            p.spawnParticle(Particle.ENCHANTMENT_TABLE, p.getLocation(), 1);
++            p.spawnParticle(Particle.ENCHANT, p.getLocation(), 1);
+         }
+     }
+ }
+diff --git a/src/main/java/io/github/slimefunguguproject/bump/implementation/items/weapons/SkyDevilSword.java b/src/main/java/io/github/slimefunguguproject/bump/implementation/items/weapons/SkyDevilSword.java
+index 3356529..3ef64b8 100644
+--- a/src/main/java/io/github/slimefunguguproject/bump/implementation/items/weapons/SkyDevilSword.java
++++ b/src/main/java/io/github/slimefunguguproject/bump/implementation/items/weapons/SkyDevilSword.java
+@@ -7,7 +7,6 @@ import org.bukkit.entity.Projectile;
+ import org.bukkit.inventory.ItemStack;
+ import org.bukkit.potion.PotionEffect;
+ import org.bukkit.potion.PotionEffectType;
+-import org.bukkit.scheduler.BukkitRunnable;
+ 
+ import io.github.slimefunguguproject.bump.implementation.Bump;
+ import io.github.slimefunguguproject.bump.implementation.BumpItems;
+@@ -36,24 +35,20 @@ public class SkyDevilSword extends BumpSword {
+ 
+         p.setGlowing(true);
+         p.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, 300, 3));
+-        p.addPotionEffect(new PotionEffect(PotionEffectType.DAMAGE_RESISTANCE, 300, 3));
+-
+-        new BukkitRunnable() {
+-            int count = 3;
+-
+-            @Override
+-            public void run() {
+-                if (count > 0) {
+-                    p.playSound(p.getLocation(), Sound.ENTITY_ENDER_DRAGON_SHOOT, 1.0F, 1.0F);
+-                    Projectile projectile = p.launchProjectile(DragonFireball.class);
+-                    WeaponProjectileTask.track(projectile);
+-                    count--;
+-                } else {
+-                    cancel();
+-                    p.setGlowing(false);
+-                    Bump.getLocalization().sendActionbarMessage(p, "weapon.sky_devil_sword.deactivated");
+-                }
++        p.addPotionEffect(new PotionEffect(PotionEffectType.RESISTANCE, 300, 3));
++
++        int[] count = {3};
++        p.getScheduler().runAtFixedRate(Bump.getInstance(), task -> {
++            if (count[0] > 0) {
++                p.playSound(p.getLocation(), Sound.ENTITY_ENDER_DRAGON_SHOOT, 1.0F, 1.0F);
++                Projectile projectile = p.launchProjectile(DragonFireball.class);
++                WeaponProjectileTask.track(projectile);
++                count[0]--;
++            } else {
++                task.cancel();
++                p.setGlowing(false);
++                Bump.getLocalization().sendActionbarMessage(p, "weapon.sky_devil_sword.deactivated");
+             }
+-        }.runTaskTimer(Bump.getInstance(), 1L, 100L);
++        }, null, 1L, 100L);
+     }
+ }
+diff --git a/src/main/java/io/github/slimefunguguproject/bump/implementation/items/weapons/SkySword.java b/src/main/java/io/github/slimefunguguproject/bump/implementation/items/weapons/SkySword.java
+index 9981026..0be8350 100644
+--- a/src/main/java/io/github/slimefunguguproject/bump/implementation/items/weapons/SkySword.java
++++ b/src/main/java/io/github/slimefunguguproject/bump/implementation/items/weapons/SkySword.java
+@@ -41,7 +41,7 @@ public class SkySword extends BumpSword {
+ 
+         BumpSound.SKY_SWORD_USE.playFor(p);
+         for (int i = 0; i < 20; i++) {
+-            p.spawnParticle(Particle.EXPLOSION_HUGE, p.getLocation(), 1);
++            p.spawnParticle(Particle.EXPLOSION_EMITTER, p.getLocation(), 1);
+         }
+         PersistentDataAPI.setBoolean(p, Keys.SKY_SWORD_PROTECTED, true);
+     }
+diff --git a/src/main/java/io/github/slimefunguguproject/bump/implementation/menus/AppraiseTypeMenu.java b/src/main/java/io/github/slimefunguguproject/bump/implementation/menus/AppraiseTypeMenu.java
+index 586134d..2ef8ebc 100644
+--- a/src/main/java/io/github/slimefunguguproject/bump/implementation/menus/AppraiseTypeMenu.java
++++ b/src/main/java/io/github/slimefunguguproject/bump/implementation/menus/AppraiseTypeMenu.java
+@@ -155,7 +155,7 @@ public final class AppraiseTypeMenu {
+                 Bump.getLocalization().getStringList("appraise_info.material.lore_disabled")
+             );
+         }
+-        return result.addFlags(ItemFlag.HIDE_POTION_EFFECTS);
++        return result.addFlags(ItemFlag.HIDE_ADDITIONAL_TOOLTIP);
+     }
+ 
+     @Nonnull
+diff --git a/src/main/java/io/github/slimefunguguproject/bump/implementation/tasks/WeaponProjectileTask.java b/src/main/java/io/github/slimefunguguproject/bump/implementation/tasks/WeaponProjectileTask.java
+index d2b15e6..cf79c9a 100644
+--- a/src/main/java/io/github/slimefunguguproject/bump/implementation/tasks/WeaponProjectileTask.java
++++ b/src/main/java/io/github/slimefunguguproject/bump/implementation/tasks/WeaponProjectileTask.java
+@@ -1,9 +1,5 @@
+ package io.github.slimefunguguproject.bump.implementation.tasks;
+ 
+-import java.util.HashMap;
+-import java.util.Iterator;
+-import java.util.Map;
+-
+ import javax.annotation.Nonnull;
+ 
+ import com.google.common.base.Preconditions;
+@@ -22,12 +18,10 @@ import io.github.thebusybiscuit.slimefun4.libraries.dough.data.persistent.Persis
+  * @author ybw0014
+  */
+ @SuppressWarnings("ConstantConditions")
+-public final class WeaponProjectileTask implements Runnable {
++public final class WeaponProjectileTask {
+ 
+     private static WeaponProjectileTask instance;
+ 
+-    // This map records each projectile's spawn time
+-    private final Map<Projectile, Integer> projectileMap = new HashMap<>();
+     private final int duration;
+ 
+     public WeaponProjectileTask(int duration) {
+@@ -41,7 +35,7 @@ public final class WeaponProjectileTask implements Runnable {
+     public static void start() {
+         int duration = Bump.getRegistry().getConfig().getInt("weapons.projectile-duration", 0, 60);
+         if (duration > 0) {
+-            Bump.getScheduler().repeat(Slimefun.getTickerTask().getTickRate(), new WeaponProjectileTask(duration));
++            instance = new WeaponProjectileTask(duration);
+         }
+     }
+ 
+@@ -56,25 +50,17 @@ public final class WeaponProjectileTask implements Runnable {
+         instance.trackProjectile(projectile);
+     }
+ 
+-    @Override
+-    public void run() {
+-        int currentTick = Bump.getSlimefunTickCount();
++    private void trackProjectile(Projectile projectile) {
++        int spawnTick = Bump.getSlimefunTickCount();
++        PersistentDataAPI.setBoolean(projectile, Keys.PROJECTILE, true);
+ 
+-        Iterator<Map.Entry<Projectile, Integer>> it = projectileMap.entrySet().iterator();
+-        while (it.hasNext()) {
+-            Map.Entry<Projectile, Integer> entry = it.next();
+-            if (entry.getValue() + duration < currentTick) {
+-                Projectile projectile = entry.getKey();
++        projectile.getScheduler().runAtFixedRate(Bump.getInstance(), task -> {
++            if (!projectile.isValid() || spawnTick + duration < Bump.getSlimefunTickCount()) {
+                 if (projectile.isValid()) {
+                     projectile.remove();
+                 }
+-                it.remove();
++                task.cancel();
+             }
+-        }
+-    }
+-
+-    private void trackProjectile(Projectile projectile) {
+-        projectileMap.put(projectile, Bump.getSlimefunTickCount());
+-        PersistentDataAPI.setBoolean(projectile, Keys.PROJECTILE, true);
++        }, null, 0L, Slimefun.getTickerTask().getTickRate());
+     }
+ }
+diff --git a/src/main/java/io/github/slimefunguguproject/bump/utils/AppraiseUtils.java b/src/main/java/io/github/slimefunguguproject/bump/utils/AppraiseUtils.java
+index 4bf6079..f5a828c 100644
+--- a/src/main/java/io/github/slimefunguguproject/bump/utils/AppraiseUtils.java
++++ b/src/main/java/io/github/slimefunguguproject/bump/utils/AppraiseUtils.java
+@@ -96,10 +96,11 @@ public final class AppraiseUtils {
+     public static AttributeModifier.Operation getOperation(@Nonnull Attribute attribute) {
+         Preconditions.checkArgument(attribute != null, "Attribute cannot be null");
+ 
+-        return switch (attribute) {
+-            case GENERIC_MOVEMENT_SPEED, HORSE_JUMP_STRENGTH -> AttributeModifier.Operation.ADD_SCALAR;
+-            default -> AttributeModifier.Operation.ADD_NUMBER;
+-        };
++        if (attribute.equals(Attribute.MOVEMENT_SPEED) || attribute.equals(Attribute.JUMP_STRENGTH)) {
++            return AttributeModifier.Operation.ADD_SCALAR;
++        }
++
++        return AttributeModifier.Operation.ADD_NUMBER;
+     }
+ 
+     @Nonnull
+diff --git a/src/main/java/io/github/slimefunguguproject/bump/utils/Utils.java b/src/main/java/io/github/slimefunguguproject/bump/utils/Utils.java
+index 3c0684f..9eedfcd 100644
+--- a/src/main/java/io/github/slimefunguguproject/bump/utils/Utils.java
++++ b/src/main/java/io/github/slimefunguguproject/bump/utils/Utils.java
+@@ -56,7 +56,7 @@ public final class Utils {
+         }
+ 
+         final ItemMeta itemMeta = item.getItemMeta();
+-        itemMeta.addEnchant(Enchantment.LUCK, 1, true);
++        itemMeta.addEnchant(Enchantment.LUCK_OF_THE_SEA, 1, true);
+         itemMeta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
+         item.setItemMeta(itemMeta);
+     }
+-- 
+2.47.3
+
