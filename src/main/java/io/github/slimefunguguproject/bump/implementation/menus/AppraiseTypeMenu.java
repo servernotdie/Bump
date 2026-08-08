@@ -155,7 +155,7 @@ public final class AppraiseTypeMenu {
                 Bump.getLocalization().getStringList("appraise_info.material.lore_disabled")
             );
         }
-        return result.addFlags(ItemFlag.HIDE_POTION_EFFECTS);
+        return result.addFlags(ItemFlag.HIDE_ADDITIONAL_TOOLTIP);
     }
 
     @Nonnull

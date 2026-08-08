@@ -163,8 +163,8 @@ public final class AttributeGrindstone extends SimpleMenuBlock {
                 for (Map.Entry<Attribute, AttributeModifier> entry : modifierMap.entries()) {
                     Attribute attribute = entry.getKey();
                     AttributeModifier modifier = entry.getValue();
-                    NamespacedKey key = NamespacedKey.fromString(modifier.getName(), Bump.getInstance());
-                    if (key != null && AppraiseType.getByKey(key) != null) {
+                    NamespacedKey key = modifier.getKey();
+                    if (AppraiseType.getByKey(key) != null) {
                         meta.removeAttributeModifier(attribute, modifier);
                     }
                 }

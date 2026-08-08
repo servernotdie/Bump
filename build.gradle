@@ -11,7 +11,8 @@ version = 'UNOFFICIAL'
 description = 'Bump'
 
 java {
-    sourceCompatibility = JavaVersion.VERSION_16
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
 }
 
 tasks.withType(JavaCompile) {
@@ -19,8 +20,15 @@ tasks.withType(JavaCompile) {
 }
 
 repositories {
-    mavenLocal()
+    exclusiveContent {
+        forRepository { mavenLocal() }
+        filter { includeGroup 'com.github.servernotdie' }
+    }
     mavenCentral()
+
+    maven {
+        url = uri('https://repo.papermc.io/repository/maven-public/')
+    }
 
     maven {
         url = uri('https://hub.spigotmc.org/nexus/content/repositories/snapshots/')
@@ -28,6 +36,9 @@ repositories {
 
     maven {
         url = uri('https://jitpack.io')
+        content {
+            excludeGroup 'com.github.servernotdie'
+        }
     }
 
     maven {
@@ -40,8 +51,10 @@ dependencies {
     implementation 'dev.sefiraat:SefiLib:0.2.6'
     implementation 'org.bstats:bstats-bukkit:3.0.2'
 
-    compileOnly 'org.spigotmc:spigot-api:1.20.4-R0.1-SNAPSHOT'
-    compileOnly 'io.github.Slimefun:Slimefun4:RC-37'
+    compileOnly 'io.papermc.paper:paper-api:1.21.11-R0.1-SNAPSHOT'
+    compileOnly('com.github.servernotdie:Slimefun4:79809c0a') {
+        transitive = false
+    }
     compileOnly 'com.google.code.findbugs:jsr305:3.0.2'
 }
 
@@ -54,7 +67,8 @@ shadowJar {
 
 bukkit {
     main = 'io.github.slimefunguguproject.bump.implementation.Bump'
-    apiVersion = '1.16'
+    apiVersion = '1.21'
+    foliaSupported = true
     authors = ['bxx2004', 'LobbyTech-MC', 'zimzaza4', 'haiman233', 'ybw0014']
     depend = ['Slimefun']
     softDepend = ['GuizhanLibPlugin']

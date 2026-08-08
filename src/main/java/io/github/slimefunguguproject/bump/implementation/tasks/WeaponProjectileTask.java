@@ -1,9 +1,5 @@
 package io.github.slimefunguguproject.bump.implementation.tasks;
 
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
-
 import javax.annotation.Nonnull;
 
 import com.google.common.base.Preconditions;
@@ -22,12 +18,10 @@ import io.github.thebusybiscuit.slimefun4.libraries.dough.data.persistent.Persis
  * @author ybw0014
  */
 @SuppressWarnings("ConstantConditions")
-public final class WeaponProjectileTask implements Runnable {
+public final class WeaponProjectileTask {
 
     private static WeaponProjectileTask instance;
 
-    // This map records each projectile's spawn time
-    private final Map<Projectile, Integer> projectileMap = new HashMap<>();
     private final int duration;
 
     public WeaponProjectileTask(int duration) {
@@ -41,7 +35,7 @@ public final class WeaponProjectileTask implements Runnable {
     public static void start() {
         int duration = Bump.getRegistry().getConfig().getInt("weapons.projectile-duration", 0, 60);
         if (duration > 0) {
-            Bump.getScheduler().repeat(Slimefun.getTickerTask().getTickRate(), new WeaponProjectileTask(duration));
+            instance = new WeaponProjectileTask(duration);
         }
     }
 
@@ -56,25 +50,17 @@ public final class WeaponProjectileTask implements Runnable {
         instance.trackProjectile(projectile);
     }
 
-    @Override
-    public void run() {
-        int currentTick = Bump.getSlimefunTickCount();
+    private void trackProjectile(Projectile projectile) {
+        int spawnTick = Bump.getSlimefunTickCount();
+        PersistentDataAPI.setBoolean(projectile, Keys.PROJECTILE, true);
 
-        Iterator<Map.Entry<Projectile, Integer>> it = projectileMap.entrySet().iterator();
-        while (it.hasNext()) {
-            Map.Entry<Projectile, Integer> entry = it.next();
-            if (entry.getValue() + duration < currentTick) {
-                Projectile projectile = entry.getKey();
+        projectile.getScheduler().runAtFixedRate(Bump.getInstance(), task -> {
+            if (!projectile.isValid() || spawnTick + duration < Bump.getSlimefunTickCount()) {
                 if (projectile.isValid()) {
                     projectile.remove();
                 }
-                it.remove();
+                task.cancel();
             }
-        }
-    }
-
-    private void trackProjectile(Projectile projectile) {
-        projectileMap.put(projectile, Bump.getSlimefunTickCount());
-        PersistentDataAPI.setBoolean(projectile, Keys.PROJECTILE, true);
+        }, null, 0L, Slimefun.getTickerTask().getTickRate());
     }
 }

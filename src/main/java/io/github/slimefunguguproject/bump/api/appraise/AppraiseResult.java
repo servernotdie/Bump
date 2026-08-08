@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -101,7 +100,7 @@ public final class AppraiseResult {
                 BumpTag tag = BumpTag.getTag(slot.name() + "_SLOT");
                 if (tag.isTagged(material)) {
                     meta.addAttributeModifier(attr,
-                        new AttributeModifier(UUID.randomUUID(), appraiseType.getKey().toString(), entry.getValue(), AppraiseUtils.getOperation(attr), slot)
+                        new AttributeModifier(appraiseType.getKey(), entry.getValue(), AppraiseUtils.getOperation(attr), slot.getGroup())
                     );
                 }
             }

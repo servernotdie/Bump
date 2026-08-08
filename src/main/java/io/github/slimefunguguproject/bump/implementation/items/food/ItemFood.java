@@ -9,7 +9,6 @@ import org.bukkit.GameMode;
 import org.bukkit.Sound;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.scheduler.BukkitRunnable;
 
 import io.github.slimefunguguproject.bump.implementation.Bump;
 import io.github.slimefunguguproject.bump.implementation.groups.BumpItemGroups;
@@ -55,19 +54,15 @@ public abstract class ItemFood extends UnplaceableBlock {
                 ItemUtils.consumeItem(e.getItem(), false);
             }
 
-            new BukkitRunnable() {
-                int count = 7;
-
-                @Override
-                public void run() {
-                    if (count > 0) {
-                        p.playSound(p.getLocation(), Sound.ENTITY_GENERIC_EAT, 1, 1);
-                        count--;
-                    } else {
-                        cancel();
-                    }
+            int[] count = {7};
+            p.getScheduler().runAtFixedRate(Bump.getInstance(), task -> {
+                if (count[0] > 0) {
+                    p.playSound(p.getLocation(), Sound.ENTITY_GENERIC_EAT, 1, 1);
+                    count[0]--;
+                } else {
+                    task.cancel();
                 }
-            }.runTaskTimer(Bump.getInstance(), 1L, 4L);
+            }, null, 1L, 4L);
 
             applyFoodEffects(p);
             cooldown.set(p.getUniqueId(), 2000L);

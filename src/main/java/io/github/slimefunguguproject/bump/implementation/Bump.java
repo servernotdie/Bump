@@ -6,7 +6,6 @@ import java.util.logging.Level;
 
 import javax.annotation.Nonnull;
 
-import org.bukkit.Bukkit;
 import org.bukkit.plugin.Plugin;
 
 import io.github.slimefunguguproject.bump.core.BumpRegistry;
@@ -157,7 +156,6 @@ public final class Bump extends AbstractAddon {
 
     @Override
     public void disable() {
-        Bukkit.getScheduler().cancelTasks(this);
     }
 
     @Override

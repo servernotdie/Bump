@@ -7,7 +7,6 @@ import org.bukkit.entity.Projectile;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
-import org.bukkit.scheduler.BukkitRunnable;
 
 import io.github.slimefunguguproject.bump.implementation.Bump;
 import io.github.slimefunguguproject.bump.implementation.BumpItems;
@@ -36,24 +35,20 @@ public class SkyDevilSword extends BumpSword {
 
         p.setGlowing(true);
         p.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, 300, 3));
-        p.addPotionEffect(new PotionEffect(PotionEffectType.DAMAGE_RESISTANCE, 300, 3));
+        p.addPotionEffect(new PotionEffect(PotionEffectType.RESISTANCE, 300, 3));
 
-        new BukkitRunnable() {
-            int count = 3;
-
-            @Override
-            public void run() {
-                if (count > 0) {
-                    p.playSound(p.getLocation(), Sound.ENTITY_ENDER_DRAGON_SHOOT, 1.0F, 1.0F);
-                    Projectile projectile = p.launchProjectile(DragonFireball.class);
-                    WeaponProjectileTask.track(projectile);
-                    count--;
-                } else {
-                    cancel();
-                    p.setGlowing(false);
-                    Bump.getLocalization().sendActionbarMessage(p, "weapon.sky_devil_sword.deactivated");
-                }
+        int[] count = {3};
+        p.getScheduler().runAtFixedRate(Bump.getInstance(), task -> {
+            if (count[0] > 0) {
+                p.playSound(p.getLocation(), Sound.ENTITY_ENDER_DRAGON_SHOOT, 1.0F, 1.0F);
+                Projectile projectile = p.launchProjectile(DragonFireball.class);
+                WeaponProjectileTask.track(projectile);
+                count[0]--;
+            } else {
+                task.cancel();
+                p.setGlowing(false);
+                Bump.getLocalization().sendActionbarMessage(p, "weapon.sky_devil_sword.deactivated");
             }
-        }.runTaskTimer(Bump.getInstance(), 1L, 100L);
+        }, null, 1L, 100L);
     }
 }
