@@ -160,6 +160,10 @@ public final class Bump extends AbstractAddon {
 
     @Override
     protected void autoUpdate() {
+        if (isFolia()) {
+            log(Level.INFO, "Skipping auto-update check on Folia.");
+            return;
+        }
         try {
             // use updater in lib plugin
             Class<?> clazz = Class.forName("net.guizhanss.guizhanlibplugin.updater.GuizhanUpdater");
@@ -174,6 +178,15 @@ public final class Bump extends AbstractAddon {
     @Nonnull
     public String getWikiURL() {
         return "https://slimefun-addons-wiki.guizhanss.cn/bump/{0}";
+    }
+
+    private boolean isFolia() {
+        try {
+            Class.forName("io.papermc.paper.threadedregions.RegionizedServer");
+            return true;
+        } catch (ClassNotFoundException e) {
+            return false;
+        }
     }
 
     private boolean isSCSlimefun(@Nonnull String sfVersion) {
