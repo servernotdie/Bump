@@ -70,6 +70,10 @@ jar {
     archiveClassifier = 'plain'
 }
 
+tasks.named('build') {
+    dependsOn tasks.named('shadowJar')
+}
+
 bukkit {
     main = 'io.github.slimefunguguproject.bump.implementation.Bump'
     apiVersion = '1.21'
