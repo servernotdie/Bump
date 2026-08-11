@@ -1,0 +1,74 @@
+From 7fccec4985a12dfb7775ecf4f7c26d2312ee2d7e Mon Sep 17 00:00:00 2001
+From: mytai20100 <142713298+Mytai20100@users.noreply.github.com>
+Date: Wed, 12 Aug 2026 00:26:27 +0700
+Subject: [PATCH] fix: folia-safe scheduler for shaded guizhanlib
+
+---
+ build/libs/FoliaFix/Scheduler.java | 54 ++++++++++++++++++++++++++++++
+ 1 file changed, 54 insertions(+)
+ create mode 100644 build/libs/FoliaFix/Scheduler.java
+
+diff --git a/build/libs/FoliaFix/Scheduler.java b/build/libs/FoliaFix/Scheduler.java
+new file mode 100644
+index 0000000..5320343
+--- /dev/null
++++ b/build/libs/FoliaFix/Scheduler.java
+@@ -0,0 +1,54 @@
++package io.github.slimefunguguproject.bump.libs.guizhanlib.slimefun.addon;
++
++import org.bukkit.plugin.Plugin;
++
++import java.util.concurrent.TimeUnit;
++
++import javax.annotation.Nonnull;
++import javax.annotation.ParametersAreNonnullByDefault;
++
++@ParametersAreNonnullByDefault
++@SuppressWarnings("ConstantConditions")
++public final class Scheduler {
++
++    private final Plugin plugin;
++
++    public Scheduler(@Nonnull Plugin plugin) {
++        if (plugin == null) {
++            throw new IllegalArgumentException("Plugin instance cannot be null");
++        }
++        this.plugin = plugin;
++    }
++
++    public void run(@Nonnull Runnable runnable) {
++        plugin.getServer().getGlobalRegionScheduler().run(plugin, task -> runnable.run());
++    }
++
++    public void runAsync(@Nonnull Runnable runnable) {
++        plugin.getServer().getAsyncScheduler().runNow(plugin, task -> runnable.run());
++    }
++
++    public void run(int delayTicks, @Nonnull Runnable runnable) {
++        plugin.getServer().getGlobalRegionScheduler().runDelayed(plugin, task -> runnable.run(), delayTicks);
++    }
++
++    public void runAsync(int delayTicks, @Nonnull Runnable runnable) {
++        plugin.getServer().getAsyncScheduler().runDelayed(plugin, task -> runnable.run(), delayTicks * 50L, TimeUnit.MILLISECONDS);
++    }
++
++    public void repeat(int intervalTicks, @Nonnull Runnable runnable) {
++        repeat(intervalTicks, 1, runnable);
++    }
++
++    public void repeatAsync(int intervalTicks, @Nonnull Runnable runnable) {
++        repeatAsync(intervalTicks, 1, runnable);
++    }
++
++    public void repeat(int intervalTicks, int delayTicks, @Nonnull Runnable runnable) {
++        plugin.getServer().getGlobalRegionScheduler().runAtFixedRate(plugin, task -> runnable.run(), delayTicks, Math.max(1, intervalTicks));
++    }
++
++    public void repeatAsync(int intervalTicks, int delayTicks, @Nonnull Runnable runnable) {
++        plugin.getServer().getAsyncScheduler().runAtFixedRate(plugin, task -> runnable.run(), delayTicks * 50L, Math.max(1, intervalTicks) * 50L, TimeUnit.MILLISECONDS);
++    }
++}
+\ No newline at end of file
+-- 
+2.47.3
+
